@@ -97,23 +97,69 @@ chmod 644 .env.template
 echo ""
 
 echo -e "${YELLOW}Step 8/8: Creating runner script...${NC}"
-cat > run_scraper.sh << 'EOF'
+cat > run_scraper.sh << EOF
 #!/bin/bash
 
+###############################################################################
+# Globe Pest Solutions Scraper - Runner Script for Ubuntu/EC2
+# 
+# This script runs the scraper with proper environment setup and logging
+# Designed to be triggered manually via SSH
+###############################################################################
+
+# Configuration
+PROJECT_DIR="$PROJECT_DIR"
+LOG_DIR="\$PROJECT_DIR/logs"
+DATE_SUFFIX=\$(date +%Y%m%d_%H%M%S)
+
+# Create log directory if it doesn't exist
+mkdir -p "\$LOG_DIR"
+
 # Change to project directory
-cd /home/ubuntu/globe-scraper
+cd "\$PROJECT_DIR" || {
+    echo "Error: Could not change to project directory: \$PROJECT_DIR"
+    exit 1
+}
 
 # Load environment variables
-source .env
+if [ -f .env ]; then
+    source .env
+else
+    echo "Error: .env file not found in \$PROJECT_DIR"
+    exit 1
+fi
 
 # Activate virtual environment
-source venv/bin/activate
+if [ -d venv ]; then
+    source venv/bin/activate
+else
+    echo "Error: Virtual environment not found in \$PROJECT_DIR/venv"
+    exit 1
+fi
+
+# Log start
+echo "========================================" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
+echo "Scraper started at: \$(date)" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
+echo "========================================" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
 
 # Run scraper with logging
-python main.py >> logs/cron_$(date +%Y%m%d).log 2>&1
+python main.py >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log" 2>&1
+
+# Capture exit code
+EXIT_CODE=\$?
+
+# Log completion
+echo "========================================" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
+echo "Scraper finished at: \$(date)" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
+echo "Exit code: \$EXIT_CODE" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
+echo "========================================" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
+echo "" >> "\$LOG_DIR/cron_\$(date +%Y%m%d).log"
 
 # Deactivate virtual environment
 deactivate
+
+# Exit with the same code as the Python script
+exit \$EXIT_CODE
 EOF
 chmod +x run_scraper.sh
 echo -e "${GREEN}✓ Runner script created: $PROJECT_DIR/run_scraper.sh${NC}"

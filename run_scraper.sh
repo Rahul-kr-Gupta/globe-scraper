@@ -4,11 +4,11 @@
 # Globe Pest Solutions Scraper - Runner Script for Ubuntu/EC2
 # 
 # This script runs the scraper with proper environment setup and logging
-# Designed to be called by cron or run manually
+# Designed to be triggered manually via SSH
 ###############################################################################
 
 # Configuration
-PROJECT_DIR="/home/ubuntu/globe-scraper"
+PROJECT_DIR="$HOME/globe-scraper"
 LOG_DIR="$PROJECT_DIR/logs"
 DATE_SUFFIX=$(date +%Y%m%d_%H%M%S)
 

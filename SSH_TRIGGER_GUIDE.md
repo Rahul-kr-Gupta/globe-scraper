@@ -11,17 +11,20 @@ This guide shows you how to trigger the scraper on your EC2 instance via SSH.
 From your local machine, run this single command:
 
 ```bash
-ssh -i your-key.pem ubuntu@your-ec2-ip '~/globe-scraper/run_scraper.sh'
+ssh -i your-key.pem your-user@your-ec2-ip '~/globe-scraper/run_scraper.sh'
 ```
 
 **Replace:**
 - `your-key.pem` with your actual SSH key path
+- `your-user` with your EC2 username (typically `ubuntu`, `ec2-user`, or `admin`)
 - `your-ec2-ip` with your EC2 instance IP address
 
 **Example:**
 ```bash
 ssh -i ~/.ssh/my-key.pem ubuntu@54.123.45.67 '~/globe-scraper/run_scraper.sh'
 ```
+
+The script automatically uses `$HOME/globe-scraper` so it works for any user! ✨
 
 This will:
 - ✅ Connect to your EC2 instance
@@ -35,7 +38,7 @@ This will:
 
 ```bash
 # Step 1: SSH into EC2
-ssh -i your-key.pem ubuntu@your-ec2-ip
+ssh -i your-key.pem your-user@your-ec2-ip
 
 # Step 2: Navigate to project
 cd ~/globe-scraper
@@ -51,7 +54,7 @@ cd ~/globe-scraper
 If you want to trigger it and not wait for completion:
 
 ```bash
-ssh -i your-key.pem ubuntu@your-ec2-ip 'nohup ~/globe-scraper/run_scraper.sh > /dev/null 2>&1 &'
+ssh -i your-key.pem your-user@your-ec2-ip 'nohup ~/globe-scraper/run_scraper.sh > /dev/null 2>&1 &'
 ```
 
 This runs the scraper in the background and returns control to you immediately.

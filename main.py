@@ -16,76 +16,148 @@ def convert_cookies(cookie_list):
         cookies[cookie['name']] = cookie['value']
     return cookies
 
-def upload_to_supabase(csv_file_path):
-    """Upload CSV data to Supabase using direct PostgreSQL connection"""
-    conn = None
+def get_db_connection():
+    """Get PostgreSQL database connection and credentials"""
+    db_config = {
+        'host': os.environ.get("SUPABASE_HOST", "").strip(),
+        'database': os.environ.get("SUPABASE_DBNAME", "postgres").strip(),
+        'user': os.environ.get("SUPABASE_USER", "").strip(),
+        'password': os.environ.get("SUPABASE_PASSWORD", "").strip(),
+        'port': os.environ.get("SUPABASE_PORT", "5432").strip(),
+        'table': os.environ.get("SUPABASE_TABLE", "globe_daily_data").strip()
+    }
+    
+    if not db_config['host'] or not db_config['user'] or not db_config['password']:
+        return None, None
+    
     try:
-        # Get PostgreSQL credentials from environment variables
-        db_host = os.environ.get("SUPABASE_HOST", "").strip()
-        db_name = os.environ.get("SUPABASE_DBNAME", "postgres").strip()
-        db_user = os.environ.get("SUPABASE_USER", "").strip()
-        db_password = os.environ.get("SUPABASE_PASSWORD", "").strip()
-        db_port = os.environ.get("SUPABASE_PORT", "5432").strip()
-        db_table = os.environ.get("SUPABASE_TABLE", "globe_daily_data").strip()
-        
-        if not db_host or not db_user or not db_password:
-            print("⚠️  PostgreSQL credentials not found. Skipping upload.")
-            return False
-        
-        print(f"\n📤 Uploading to Supabase...")
-        print(f"   Host: {db_host}")
-        print(f"   Database: {db_name}")
-        print(f"   Table: {db_table}")
-        
-        # Connect to PostgreSQL
         conn = psycopg2.connect(
-            host=db_host,
-            database=db_name,
-            user=db_user,
-            password=db_password,
-            port=db_port
+            host=db_config['host'],
+            database=db_config['database'],
+            user=db_config['user'],
+            password=db_config['password'],
+            port=db_config['port']
         )
+        return conn, db_config['table']
+    except Exception as e:
+        print(f"❌ Error connecting to database: {str(e)}")
+        return None, None
+
+def create_table_if_not_exists():
+    """Create the database table if it doesn't exist"""
+    conn, table_name = get_db_connection()
+    
+    if not conn:
+        print("⚠️  PostgreSQL credentials not found. Skipping table creation.")
+        return False
+    
+    try:
         cursor = conn.cursor()
         
-        # Read CSV file
-        df = pd.read_csv(csv_file_path, keep_default_na=False)
-        
-        # Add timestamp
-        df['scraped_at'] = datetime.now()
-        df['created_at'] = datetime.now()
-        
-        # Convert empty strings to None
-        df = df.replace('', None)
-        
-        print(f"   Total records to upload: {len(df)}")
-        
-        # Prepare data for insertion
-        columns = df.columns.tolist()
-        values = [tuple(row) for row in df.values]
-        
-        # Create INSERT query
-        insert_query = f"""
-            INSERT INTO {db_table} ({', '.join(columns)})
-            VALUES %s
+        # Create table if it doesn't exist
+        create_table_query = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id SERIAL PRIMARY KEY,
+            url TEXT,
+            product_name TEXT,
+            product_code TEXT,
+            sku TEXT,
+            price TEXT,
+            availability TEXT,
+            product_quantity TEXT,
+            description TEXT,
+            status TEXT,
+            scraped_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
         """
         
-        # Execute batch insert
-        execute_values(cursor, insert_query, values)
+        cursor.execute(create_table_query)
         conn.commit()
         
-        total_inserted = len(values)
-        print(f"   ✓ {total_inserted} records inserted")
+        print(f"✅ Table '{table_name}' is ready")
         
-        # Close connection
         cursor.close()
         conn.close()
-        
-        print(f"\n✅ Successfully uploaded {total_inserted} records to Supabase")
         return True
         
     except Exception as e:
-        print(f"\n❌ Error uploading to Supabase: {str(e)}")
-        if conn is not None:
+        print(f"❌ Error creating table: {str(e)}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        return False
+
+def clear_database():
+    """Clear all data from the database table before scraping"""
+    conn, table_name = get_db_connection()
+    
+    if not conn:
+        print("⚠️  PostgreSQL credentials not found. Skipping database clear.")
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Delete all records from the table
+        cursor.execute(f"DELETE FROM {table_name}")
+        conn.commit()
+        
+        deleted_count = cursor.rowcount
+        print(f"🗑️  Cleared {deleted_count} existing records from database")
+        
+        cursor.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error clearing database: {str(e)}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        return False
+
+def insert_product_to_db(product_data):
+    """Insert a single product into the database immediately after scraping"""
+    conn, table_name = get_db_connection()
+    
+    if not conn:
+        return False
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Add timestamps
+        product_data['scraped_at'] = datetime.now()
+        product_data['created_at'] = datetime.now()
+        
+        # Convert empty strings to None
+        for key, value in product_data.items():
+            if value == '':
+                product_data[key] = None
+        
+        # Prepare columns and values
+        columns = list(product_data.keys())
+        values = [product_data[col] for col in columns]
+        
+        # Create INSERT query
+        placeholders = ', '.join(['%s'] * len(columns))
+        insert_query = f"""
+            INSERT INTO {table_name} ({', '.join(columns)})
+            VALUES ({placeholders})
+        """
+        
+        # Execute insert
+        cursor.execute(insert_query, values)
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"   ⚠️  Error inserting to database: {str(e)}")
+        if conn:
             conn.rollback()
             conn.close()
         return False
@@ -175,6 +247,19 @@ def scrape_product(url, session):
         }
 
 def main():
+    # Clear database before starting
+    print("=" * 60)
+    print("🚀 Starting Globe Pest Solutions Scraper")
+    print("=" * 60)
+    print()
+    
+    # Create table if it doesn't exist
+    create_table_if_not_exists()
+    
+    # Clear database
+    clear_database()
+    print()
+    
     # Define cookies
     cookies_json = [
         {
@@ -236,14 +321,15 @@ def main():
     output_csv = f'scraped_data/scraped_products_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
     
     products_data = []
+    db_insert_count = 0
     
-    print(f"Reading product links from: {input_csv}")
+    print(f"📄 Reading product links from: {input_csv}")
     
     with open(input_csv, 'r', encoding='utf-8') as f:
         csv_reader = csv.DictReader(f)
         product_links = [row['product_link'] for row in csv_reader]
     
-    print(f"Found {len(product_links)} products to scrape\n")
+    print(f"📊 Found {len(product_links)} products to scrape\n")
     
     # Scrape each product
     for i, url in enumerate(product_links, 1):
@@ -251,10 +337,17 @@ def main():
         product_data = scrape_product(url, session)
         products_data.append(product_data)
         
+        # Insert into database immediately after scraping
+        if product_data['status'] == 'success':
+            if insert_product_to_db(product_data):
+                db_insert_count += 1
+                print(f"   💾 Inserted to database ({db_insert_count} total)")
+        
         # Be polite to the server - add a small delay between requests
         time.sleep(1)
     
-    # Write results to CSV
+    # Write results to CSV (backup)
+    print()
     if products_data:
         fieldnames = ['url', 'product_name', 'product_code', 'sku', 'price', 
                      'availability', 'product_quantity', 'description', 'status']
@@ -264,22 +357,25 @@ def main():
             writer.writeheader()
             writer.writerows(products_data)
         
-        print(f"\n✓ Successfully scraped {len(products_data)} products")
-        print(f"✓ Results saved to: {output_csv}")
+        print(f"✓ Successfully scraped {len(products_data)} products")
+        print(f"✓ CSV backup saved to: {output_csv}")
         
         # Print summary
         success_count = sum(1 for p in products_data if p['status'] == 'success')
         error_count = len(products_data) - success_count
-        print(f"\nSummary:")
-        print(f"  - Successful: {success_count}")
+        print(f"\n📈 Summary:")
+        print(f"  - Successful scrapes: {success_count}")
         print(f"  - Errors: {error_count}")
+        print(f"  - Inserted to database: {db_insert_count}")
         
-        # Upload to Supabase
-        upload_to_supabase(output_csv)
+        print()
+        print("=" * 60)
+        print("✅ Scraping completed successfully!")
+        print("=" * 60)
         
         return output_csv
     else:
-        print("No products were scraped!")
+        print("❌ No products were scraped!")
         return None
 
 if __name__ == "__main__":
