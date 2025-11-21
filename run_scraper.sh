@@ -21,15 +21,7 @@ cd "$PROJECT_DIR" || {
     exit 1
 }
 
-# Load environment variables
-if [ -f .env ]; then
-    source .env
-else
-    echo "Error: .env file not found in $PROJECT_DIR"
-    exit 1
-fi
-
-# Activate virtual environment
+# Activate virtual environment (python-dotenv will load .env automatically)
 if [ -d venv ]; then
     source venv/bin/activate
 else

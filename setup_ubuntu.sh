@@ -55,9 +55,9 @@ echo -e "${GREEN}✓ Virtual environment created${NC}"
 echo ""
 
 echo -e "${YELLOW}Step 5/8: Installing Python packages...${NC}"
-pip install requests beautifulsoup4 lxml pandas psycopg2-binary > /dev/null 2>&1
+pip install requests beautifulsoup4 lxml pandas psycopg2-binary python-dotenv > /dev/null 2>&1
 echo -e "${GREEN}✓ Python packages installed:${NC}"
-pip list | grep -E "requests|beautifulsoup4|lxml|pandas|psycopg2"
+pip list | grep -E "requests|beautifulsoup4|lxml|pandas|psycopg2|dotenv"
 echo ""
 
 echo -e "${YELLOW}Step 6/8: Creating directory structure...${NC}"
@@ -76,12 +76,12 @@ cat > .env.template << 'EOF'
 # IMPORTANT: Copy this file to .env and fill in your actual credentials
 # DO NOT commit .env to version control
 
-export SUPABASE_HOST="YOUR_SUPABASE_HOST_HERE"
-export SUPABASE_DBNAME="postgres"
-export SUPABASE_USER="YOUR_POSTGRES_USER_HERE"
-export SUPABASE_PASSWORD="YOUR_POSTGRES_PASSWORD_HERE"
-export SUPABASE_PORT="6543"
-export SUPABASE_TABLE="globe_daily_data"
+SUPABASE_HOST=YOUR_SUPABASE_HOST_HERE
+SUPABASE_DBNAME=postgres
+SUPABASE_USER=YOUR_POSTGRES_USER_HERE
+SUPABASE_PASSWORD=YOUR_POSTGRES_PASSWORD_HERE
+SUPABASE_PORT=6543
+SUPABASE_TABLE=globe_daily_data
 EOF
 
 if [ ! -f .env ]; then

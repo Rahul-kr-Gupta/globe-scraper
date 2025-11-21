@@ -8,6 +8,10 @@ import pandas as pd
 from datetime import datetime
 import psycopg2
 from psycopg2.extras import execute_values
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 def convert_cookies(cookie_list):
     """Convert cookie list from JSON format to requests cookies dict"""
